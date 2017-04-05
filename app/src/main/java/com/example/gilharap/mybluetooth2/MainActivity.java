@@ -11,14 +11,18 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.LinearLayout;
 import android.widget.RadioGroup;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,22 +42,35 @@ public class MainActivity extends AppCompatActivity {
 
     private BluetoothAdapter mBtAdapter;
 
-    @BindView(R.id.showPairedDevices)
-    View showPairedDevices;
+/*    @BindView(R.id.showPairedDevices)
+    View showPairedDevices;*/
+
     @BindView(R.id.sendMessageToPairedDevice)
     View sendMessageToPairedDevice;
+
     @BindView(R.id.closeSocket)
     View closeSocket;
+
     @BindView(R.id.recycler)
     RecyclerView recycler;
+
     @BindView(R.id.answer)
     TextView answer;
+
     @BindView(R.id.radioGroup)
     RadioGroup radioGroup;
+
     @BindView(R.id.indicatorsLayout1)
     LinearLayout indicatorsLayout1;
+
     @BindView(R.id.indicatorsLayout2)
     LinearLayout indicatorsLayout2;
+
+    @BindView(R.id.level)
+    Spinner spinnerLevel;
+
+    @BindView(R.id.current)
+    Spinner spinnerCurrent;
 
 
     //    private Set<BluetoothDevice> pairedDevices;
@@ -83,14 +100,14 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-        showPairedDevices.setOnClickListener(new View.OnClickListener() {
+/*        showPairedDevices.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
 // Get a set of currently paired devices
                 Set<BluetoothDevice> pairedDevices = mBtAdapter.getBondedDevices();
                 pairedDevicesList = new ArrayList<>(pairedDevices);
             }
-        });
+        });*/
 
         sendMessageToPairedDevice.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -99,28 +116,43 @@ public class MainActivity extends AppCompatActivity {
                 View radioButton = radioGroup.findViewById(radioButtonID);
                 int idx = radioGroup.indexOfChild(radioButton);
 
-                byte[] send = new byte[]{(byte) 0xDA,
+                ArrayList<Byte> send = new ArrayList<>(Arrays.asList((byte) 0xDA,
                         (byte) 0xDE,
                         (byte) 0x00,
                         (byte) 0x00,
                         (byte) 0x00,
                         (byte) 0x00,
-                        (byte) 0x00,
-                };
+                        (byte) 0x00
+            ));
 
                 switch (idx) {
                     case 0:
-                        send[3] =  (byte) 0x01;
+                        send.set(3,(byte) 0x01);
                         break;
                     case 1:
-                        send[3] =  (byte) 0x21;
+                        send.set(3,(byte) 0x21);
                         break;
                     case 2:
-                        send[3] =  (byte) 0x22;
+                        send.set(3,(byte) 0x22);
                         break;
                 }
 
-                sendMessage(send);
+                // change payload count
+                send.set(2, (byte) 0x02);
+
+                send.add(4, ConvertUtil.intToHexByte(spinnerLevel.getSelectedItemPosition()));
+                send.add(5, ConvertUtil.intToHexByte(spinnerCurrent.getSelectedItemPosition()));
+
+
+                // transfer List to Array
+                Byte[] sendObjects = send.toArray(new Byte[send.size()]);
+                byte[] sendBytes = new byte[sendObjects.length];
+                int i = 0;
+                for(Byte b: sendObjects){
+                    sendBytes[i++] = b.byteValue();
+                }
+
+                sendMessage(sendBytes);
 
 //                BluetoothDevice.createRfcommSocketToServiceRecord().connect();
             }
@@ -149,6 +181,17 @@ public class MainActivity extends AppCompatActivity {
 
         binaries = generateTableOfAllBinaries();
 
+        // set spinners
+        List levelsLst = new ArrayList(Arrays.asList("P_95_N_5", "P_92_5_N_7_5", "P_90_N_10" ,"P_87_5_N_12_5", "P_85_N_15", "P_80_N_20", "P_75_N_25", "P_70_N_30"));
+        ArrayAdapter<String> levelArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, levelsLst); //selected item will look like a spinner set from XML
+        levelArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerLevel.setAdapter(levelArrayAdapter);
+
+        List currentLst = new ArrayList(Arrays.asList("CURRENT_6_NA", "CURRENT_24_NA", "CURRENT_6_UA", "CURRENT_24_UA"));
+        ArrayAdapter<String> currentArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, currentLst); //selected item will look like a spinner set from XML
+        currentArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerCurrent.setAdapter(currentArrayAdapter);
+
     }
 
     private ArrayList<String> generateTableOfAllBinaries() {
@@ -170,43 +213,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void sendMessage(byte[] send) {
 
-       /* // Check that there's actually something to send
-        if (message.length() > 0) {
-            // Get the message bytes and tell the BluetoothChatService to write
-            byte[] send = message.getBytes();
-            mChatService.write(send);
-
-        }*/
-
-//        byte[] send = message.getBytes();
-
-      /*  // config lead off detection
-        byte[] send = new byte[]{(byte) 0xDA,
-                (byte) 0xDE,
-                (byte) 0x00,
-                (byte) 0x21,
-                (byte) 0x00,
-                (byte) 0x00,
-                (byte) 0x00,
-        };*/
-
-//        Get FW Version
-
         write(send);
 
         alreadyConnectedThread = new AlreadyConnectedThread(socket, new Receiver());
         alreadyConnectedThread.start();
-
-/*      // TODO remove
-        byte[] testBytes = new byte[]{(byte)0xDA,
-                (byte)0xDE,
-                (byte)0xB1,
-                (byte)0x21,
-                (byte)0x00,
-                (byte)0x00,
-                (byte)0x00,
-        };
-        updateUI(testBytes);*/
     }
 
     private class Receiver implements AlreadyConnectedThread.MessageReceiver {

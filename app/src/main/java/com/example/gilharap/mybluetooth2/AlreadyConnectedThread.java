@@ -81,9 +81,9 @@ public class AlreadyConnectedThread extends Thread {
     }
 
 /*    // Call this from the main activity to send data to the remote device.
-    public void write(byte[] bytes) {
+    public void writeToSocket(byte[] bytes) {
         try {
-            mmOutStream.write(bytes);
+            mmOutStream.writeToSocket(bytes);
 
         } catch (IOException e) {
             Log.e(TAG, "Error occurred when sending data", e);

@@ -13,7 +13,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.LinearLayout;
-import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,8 +44,11 @@ public class MainActivity extends AppCompatActivity {
 /*    @BindView(R.id.showPairedDevices)
     View showPairedDevices;*/
 
-    @BindView(R.id.sendMessageToPairedDevice)
-    View sendMessageToPairedDevice;
+    @BindView(R.id.start)
+    View start;
+
+    @BindView(R.id.stop)
+    View stop;
 
     @BindView(R.id.closeSocket)
     View closeSocket;
@@ -57,8 +59,8 @@ public class MainActivity extends AppCompatActivity {
     @BindView(R.id.answer)
     TextView answer;
 
-    @BindView(R.id.radioGroup)
-    RadioGroup radioGroup;
+//    @BindView(R.id.radioGroup)
+//    RadioGroup radioGroup;
 
     @BindView(R.id.indicatorsLayout1)
     LinearLayout indicatorsLayout1;
@@ -100,61 +102,25 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-/*        showPairedDevices.setOnClickListener(new View.OnClickListener() {
+        start.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-// Get a set of currently paired devices
-                Set<BluetoothDevice> pairedDevices = mBtAdapter.getBondedDevices();
-                pairedDevicesList = new ArrayList<>(pairedDevices);
+                Message message = new Message();
+                message.setStart();
+                message.setPayloadCount(2);
+                message.addPayload(spinnerLevel.getSelectedItemPosition());
+                message.addPayload(spinnerCurrent.getSelectedItemPosition());
+
+                sendMessage(message);
             }
-        });*/
+        });
 
-        sendMessageToPairedDevice.setOnClickListener(new View.OnClickListener() {
+        stop.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                int radioButtonID = radioGroup.getCheckedRadioButtonId();
-                View radioButton = radioGroup.findViewById(radioButtonID);
-                int idx = radioGroup.indexOfChild(radioButton);
-
-                ArrayList<Byte> send = new ArrayList<>(Arrays.asList((byte) 0xDA,
-                        (byte) 0xDE,
-                        (byte) 0x00,
-                        (byte) 0x00,
-                        (byte) 0x00,
-                        (byte) 0x00,
-                        (byte) 0x00
-            ));
-
-                switch (idx) {
-                    case 0:
-                        send.set(3,(byte) 0x01);
-                        break;
-                    case 1:
-                        send.set(3,(byte) 0x21);
-                        break;
-                    case 2:
-                        send.set(3,(byte) 0x22);
-                        break;
-                }
-
-                // change payload count
-                send.set(2, (byte) 0x02);
-
-                send.add(4, ConvertUtil.intToHexByte(spinnerLevel.getSelectedItemPosition()));
-                send.add(5, ConvertUtil.intToHexByte(spinnerCurrent.getSelectedItemPosition()));
-
-
-                // transfer List to Array
-                Byte[] sendObjects = send.toArray(new Byte[send.size()]);
-                byte[] sendBytes = new byte[sendObjects.length];
-                int i = 0;
-                for(Byte b: sendObjects){
-                    sendBytes[i++] = b.byteValue();
-                }
-
-                sendMessage(sendBytes);
-
-//                BluetoothDevice.createRfcommSocketToServiceRecord().connect();
+                Message message = new Message();
+                message.setStop();
+                sendMessage(message);
             }
         });
 
@@ -171,16 +137,15 @@ public class MainActivity extends AppCompatActivity {
 
 
         // Get a set of currently paired devices
-        Set<BluetoothDevice> pairedDevices = mBtAdapter.getBondedDevices();
-        pairedDevicesList = new ArrayList<>(pairedDevices);
-
-        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
-        recycler.setLayoutManager(linearLayoutManager);
-        adapter = new PairedAdapter(pairedDevicesList, new SelectListen());
-        recycler.setAdapter(adapter);
+        showPairedDevices();
 
         binaries = generateTableOfAllBinaries();
+        setSpinners();
 
+
+    }
+
+    private void setSpinners() {
         // set spinners
         List levelsLst = new ArrayList(Arrays.asList("P_95_N_5", "P_92_5_N_7_5", "P_90_N_10" ,"P_87_5_N_12_5", "P_85_N_15", "P_80_N_20", "P_75_N_25", "P_70_N_30"));
         ArrayAdapter<String> levelArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, levelsLst); //selected item will look like a spinner set from XML
@@ -191,29 +156,32 @@ public class MainActivity extends AppCompatActivity {
         ArrayAdapter<String> currentArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, currentLst); //selected item will look like a spinner set from XML
         currentArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCurrent.setAdapter(currentArrayAdapter);
+    }
 
+    private void showPairedDevices() {
+        Set<BluetoothDevice> pairedDevices = mBtAdapter.getBondedDevices();
+        pairedDevicesList = new ArrayList<>(pairedDevices);
+
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
+        recycler.setLayoutManager(linearLayoutManager);
+        adapter = new PairedAdapter(pairedDevicesList, new SelectListen());
+        recycler.setAdapter(adapter);
     }
 
     private ArrayList<String> generateTableOfAllBinaries() {
         ArrayList<String> binaries = new ArrayList<>();
         for (int i = 0; i < 256; i++) {
-            String binary = intToBinary(i);
+            String binary = ConvertUtil.intToBinaryString(i);
             binaries.add(binary);
         }
         return binaries;
     }
 
-    private String intToBinary(int num) {
-        String ans =  Integer.toBinaryString(num);
-        for(int i = ans.length(); i < 8; i++){
-            ans = "0" + ans ;
-        }
-        return ans;
-    }
 
-    private void sendMessage(byte[] send) {
 
-        write(send);
+    private void sendMessage(Message message) {
+
+        writeToSocket(message.toBytes());
 
         alreadyConnectedThread = new AlreadyConnectedThread(socket, new Receiver());
         alreadyConnectedThread.start();
@@ -230,7 +198,7 @@ public class MainActivity extends AppCompatActivity {
     private void updateUI(byte[] buffer) {
 
         String payload = "";
-        final String hex = bytesToHex(buffer);
+        final String hex = ConvertUtil.bytesToHexString(buffer);
 
         // payload to binary
         for(int i=5; i<buffer.length-2; i++){
@@ -318,14 +286,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Call this from the main activity to send data to the remote device.
-    public void write(byte[] bytes) {
-
+    public void writeToSocket(byte[] bytes) {
 
         try {
-           /* if (!socket.isConnected()) {
-                socket.close();
-                socket = selectedDevice.createRfcommSocketToServiceRecord(selectedDevice.getUuids()[0].getUuid());
-            }*/
             outStream = socket.getOutputStream();
         } catch (IOException e) {
             Log.e("tag", "Error occurred when creating output stream", e);
@@ -340,15 +303,5 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public static String bytesToHex(byte[] bytes) {
-        final char[] hexArray = "0123456789ABCDEF".toCharArray();
 
-        char[] hexChars = new char[bytes.length * 2];
-        for (int j = 0; j < bytes.length; j++) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
 }
